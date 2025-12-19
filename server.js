@@ -1,5 +1,6 @@
 import express from "express";
-import {ENV} from "./config/env.js";
+import dotenv from "dotenv";
+dotenv.config();
 import {db} from "./config/db.js";
 import { favoritesTable } from "./db/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -8,7 +9,7 @@ import { eq, and } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
-const PORT = ENV.PORT ||5001
+const PORT = process.env.PORT ||5001
 
 
 
