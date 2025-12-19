@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config();
-import {db} from "./config/db.js";
+import { db } from "./src/config/db.js";
 import { favoritesTable } from "./db/schema.js";
 import { eq, and } from "drizzle-orm";
 
