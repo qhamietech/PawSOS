@@ -4,6 +4,8 @@ dotenv.config();
 import { db } from "./src/config/db.js";
 import { favoritesTable } from "./src/db/schema.js";
 import { eq, and } from "drizzle-orm";
+import job from "./src/config/cron.js";
+
 
 
 
@@ -11,6 +13,7 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT ||5001
 
+if(process.env.NODE_ENV === "production") job.start();
 
 
 app.get("/api/health", (req, res) => {
