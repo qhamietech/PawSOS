@@ -8,22 +8,58 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+  "image": "./assets/splash.png",
+  "resizeMode": "contain",
+  "backgroundColor": "#f1f2f6" 
+},
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.qhamie.pawsos",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "PawSOS needs your location to find nearby pet emergencies.",
+        "NSPhotoLibraryUsageDescription": "PawSOS needs access to your photos so you can upload images of pet injuries."
+      }
     },
     "android": {
+      "package": "com.qhamie.pawsos",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCWmSd_lyPDrWILpinBuKO0hlVJDTsYyWs"
+        }
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font",
+      "expo-location",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share images of pet injuries."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c3f1cf65-3ce1-4606-955d-4595bc2dd8a3"
+      }
+    },
+    "owner": "qhamietech"
   }
 }
