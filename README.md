@@ -96,4 +96,5 @@ Start the App:
 Bash
 
 npx expo start
-View the App: Scan the QR code with the Expo Go app on your phone or press i for the simulator.
+View the App: Scan the QR code with the Expo Go app on your phone 
+or press i for the simulator.
