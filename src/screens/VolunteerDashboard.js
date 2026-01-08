@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Linking, Platform, StatusBar, SafeAreaView, ActivityIndicator, ScrollView, TextInput, Animated } from 'react-native'; 
+import { 
+  View, Text, TouchableOpacity, StyleSheet, Alert, 
+  StatusBar, SafeAreaView, ActivityIndicator, ScrollView, 
+  TextInput, Animated 
+} from 'react-native'; 
 import { db, auth } from '../../firebaseConfig'; 
 import { collection, onSnapshot, query, where, orderBy, doc } from 'firebase/firestore';
 import { acceptSOS, logoutUser, registerForPushNotifications, takeOverCase } from '../services/firebaseActions';
@@ -7,18 +11,28 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, GlobalStyles } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
+/**
+ * VOLUNTEER DASHBOARD
+ * Purpose: Central hub for Responders (Students & Vets).
+ * Logic: Implements Tier-Based Access Control (RBAC) where users only see 
+ * alerts matching their qualification level.
+ */
 const VolunteerDashboard = ({ navigation, route }) => {
   const [alerts, setAlerts] = useState([]);
-  const [escalatedAlerts, setEscalatedAlerts] = useState([]); // New state for escalated cases
+  const [escalatedAlerts, setEscalatedAlerts] = useState([]); 
   const [userProfile, setUserProfile] = useState(route.params?.userProfile || null);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState(''); 
   
+  // LIVE PORTFOLIO STATS
+  const [liveStats, setLiveStats] = useState({ resolved: 0, points: 0 });
+  
+  // CPR METRONOME ANIMATION
   const [isMetronomeActive, setIsMetronomeActive] = useState(false);
   const beatAnim = useRef(new Animated.Value(1)).current;
   const hasLoadedInitial = useRef(false);
 
-  // CPR Metronome Logic (110 BPM)
+  // --- CPR METRONOME LOGIC (110 BPM) ---
   useEffect(() => {
     let interval;
     if (isMetronomeActive) {
@@ -27,31 +41,19 @@ const VolunteerDashboard = ({ navigation, route }) => {
           Animated.timing(beatAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
           Animated.timing(beatAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
         ]).start();
-      }, 545); 
+      }, 545); // Calculations: 60,000ms / 110bpm = ~545ms
     } else {
       beatAnim.setValue(1);
     }
     return () => clearInterval(interval);
   }, [isMetronomeActive]);
 
-  useEffect(() => {
-    if (route.params?.resolvedCase) {
-      Alert.alert(
-        "🎉 Case Resolved!",
-        "Excellent work! Your points have been updated and the emergency has been closed.",
-        [{ text: "Awesome", onPress: () => navigation.setParams({ resolvedCase: undefined }) }]
-      );
-    }
-  }, [route.params?.resolvedCase]);
-
+  // --- DATA INITIALIZATION & LISTENERS ---
   useEffect(() => {
     const userId = userProfile?.uid || auth.currentUser?.uid;
-    
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    if (!userId) { setLoading(false); return; }
 
+    // 1. Live Profile Listener (Points & Tier)
     const unsubProfile = onSnapshot(doc(db, 'users', userId), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -61,17 +63,25 @@ const VolunteerDashboard = ({ navigation, route }) => {
         setLoading(false);
         hasLoadedInitial.current = true;
       }
-    }, (err) => {
-      console.error("Profile Fetch Error:", err);
-      setLoading(false);
     });
 
+    // 2. Real-time Impact Statistics
+    const statsQuery = query(
+      collection(db, "alerts"),
+      where("assignedVetId", "==", userId),
+      where("status", "==", "resolved")
+    );
+    const unsubStats = onSnapshot(statsQuery, (snapshot) => {
+      const count = snapshot.size;
+      setLiveStats({ resolved: count, points: count * 50 });
+    });
+
+    // 3. Dynamic Alerts Query (Tier-Based Filtering)
     const userTier = userProfile?.tierId || 'student';
     let allowedSeverities = ['low'];
     if (userTier === 'graduate') allowedSeverities = ['low', 'mid'];
     if (userTier === 'qualified') allowedSeverities = ['low', 'mid', 'high'];
 
-    // Standard Alerts Query
     const q = query(
       collection(db, "alerts"), 
       where("status", "in", ["pending", "on_way", "accepted"]),
@@ -82,11 +92,9 @@ const VolunteerDashboard = ({ navigation, route }) => {
     const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
       const temp = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       setAlerts(temp);
-    }, (err) => {
-      console.error("Alerts Fetch Error:", err);
-    });
+    }, (err) => console.error("Alerts Sync Error:", err));
 
-    // Escalated Alerts Query (Only relevant for non-students)
+    // 4. Escalation Monitor (Seniors see what students couldn't handle)
     let unsubscribeEscalated = () => {};
     if (userTier !== 'student') {
         const eq = query(
@@ -103,16 +111,16 @@ const VolunteerDashboard = ({ navigation, route }) => {
     registerForPushNotifications(userId);
     
     return () => { 
-      unsubProfile(); 
-      unsubscribeAlerts(); 
-      unsubscribeEscalated();
+      unsubProfile(); unsubStats();
+      unsubscribeAlerts(); unsubscribeEscalated();
     };
   }, [userProfile?.uid, userProfile?.tierId]);
 
+  // --- NAVIGATION & ACTIONS ---
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", onPress: async () => {
+    Alert.alert("Go Offline", "Stop receiving emergency notifications?", [
+      { text: "Stay Online", style: "cancel" },
+      { text: "Go Offline", style: 'destructive', onPress: async () => {
           await logoutUser();
           navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       }}
@@ -120,34 +128,26 @@ const VolunteerDashboard = ({ navigation, route }) => {
   };
 
   const handleAcceptOrEnter = async (item) => {
-    const isStudent = userProfile?.tierId === 'student';
-
     if (item.assignedVetId === userProfile.uid) {
       navigation.navigate('LiveCaseScreen', { alertId: item.id, userProfile: userProfile });
       return;
     }
 
-    // Determine if this is a takeover of an escalated case
     const isEscalated = item.status === 'escalated';
+    const isStudent = userProfile?.tierId === 'student';
 
     Alert.alert(
-      isEscalated ? "Take Over Escalated Case" : (isStudent ? "Consult on Case" : "Accept Emergency"),
+      isEscalated ? "High Priority: Take Over Case" : (isStudent ? "Provide Guidance" : "Respond to SOS"),
       isEscalated 
-        ? "This case was triaged by a student and needs senior attention."
-        : (isStudent 
-            ? "You will be providing remote guidance via the Medical Clipboard." 
-            : "Are you sure you want to respond to this emergency?"),
+        ? "This requires immediate professional intervention."
+        : "Confirm you are ready to assist with this case.",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Confirm", 
-          onPress: async () => {
-            let res;
-            if (isEscalated) {
-                res = await takeOverCase(item.id, userProfile.uid, userProfile.name, userProfile.tierId);
-            } else {
-                res = await acceptSOS(item.id, userProfile.uid, userProfile.name, userProfile.tierId);
-            }
+        { text: "Confirm", onPress: async () => {
+            let res = isEscalated 
+              ? await takeOverCase(item.id, userProfile.uid, userProfile.name, userProfile.tierId)
+              : await acceptSOS(item.id, userProfile.uid, userProfile.name, userProfile.tierId);
+            
             if (res.success) navigation.navigate('LiveCaseScreen', { alertId: item.id, userProfile: userProfile });
           }
         }
@@ -160,37 +160,42 @@ const VolunteerDashboard = ({ navigation, route }) => {
   return (
     <SafeAreaView style={GlobalStyles.container}>
       <StatusBar barStyle="dark-content" />
+      
+      {/* HEADER SECTION */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.welcomeText}>Hello Doc, {userProfile?.name?.split(' ')[0] || 'Volunteer'}</Text>
-            <TouchableOpacity onPress={handleLogout}><Text style={styles.logoutText}>GO OFFLINE</Text></TouchableOpacity>
+            <Text style={styles.welcomeText}>Hello {userProfile?.name?.split(' ')[0] || 'Volunteer'}</Text>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text style={styles.logoutText}>SHUTDOWN SYSTEM</Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.profileCircle}>
-            <Ionicons name="person" size={24} color={COLORS.primaryDark} />
+            <Ionicons name="medical" size={24} color={COLORS.accentCoral} />
           </TouchableOpacity>
         </View>
 
         <LinearGradient colors={[COLORS.primaryDark, '#1a1a2e']} style={styles.rankCard}>
           <View>
-            <Text style={styles.rankLabel}>QUALIFICATION</Text>
+            <Text style={styles.rankLabel}>CURRENT LICENSE</Text>
             <Text style={styles.rankTier}>{userProfile?.tierId?.toUpperCase() || 'STUDENT'}</Text>
           </View>
           <View style={styles.pointsContainer}>
-              <Text style={styles.pointsValue}>{userProfile?.points || 0}</Text>
+              <Text style={styles.pointsValue}>{liveStats.points || userProfile?.points || 0}</Text>
               <Text style={styles.pointsLabel}>RESCUE PTS</Text>
           </View>
         </LinearGradient>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {/* IMPACT STATS SECTION */}
+        
+        {/* KPI / IMPACT CARDS */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Performance Impact</Text>
+          <Text style={styles.sectionTitle}>Global Impact</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
             <View style={[styles.statCard, { borderLeftColor: '#2ecc71' }]}>
-              <Text style={styles.statValue}>{userProfile?.resolvedCount || 0}</Text>
-              <Text style={styles.statLabel}>Lives Helped</Text>
+              <Text style={styles.statValue}>{liveStats.resolved}</Text>
+              <Text style={styles.statLabel}>Lives Saved</Text>
             </View>
             <View style={[styles.statCard, { borderLeftColor: COLORS.accentCoral }]}>
               <Text style={styles.statValue}>4.9</Text>
@@ -203,7 +208,7 @@ const VolunteerDashboard = ({ navigation, route }) => {
           </ScrollView>
         </View>
 
-        {/* TOOLS GRID SECTION */}
+        {/* CLINICAL TOOLS */}
         <View style={styles.toolsGrid}>
           <TouchableOpacity 
             style={[styles.toolCard, isMetronomeActive && styles.toolCardActive]} 
@@ -214,32 +219,31 @@ const VolunteerDashboard = ({ navigation, route }) => {
             </Animated.Text>
             <Text style={[styles.toolTitle, isMetronomeActive && { color: '#fff' }]}>CPR Metronome</Text>
             <Text style={[styles.toolSubText, isMetronomeActive && { color: 'rgba(255,255,255,0.7)' }]}>
-               {isMetronomeActive ? 'KEEP PACE: 110' : 'Start Beats'}
+                {isMetronomeActive ? '110 BPM ACTIVE' : 'Start Guidance'}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.toolCard} 
-            onPress={() => navigation.navigate('Leaderboard')}
-          >
+          <TouchableOpacity style={styles.toolCard} onPress={() => navigation.navigate('Leaderboard')}>
             <Text style={styles.toolIcon}>🏆</Text>
             <Text style={styles.toolTitle}>Leaderboard</Text>
-            <Text style={styles.toolSubText}>View Top Heroes</Text>
+            <Text style={styles.toolSubText}>Top Responders</Text>
           </TouchableOpacity>
         </View>
 
+        {/* SEARCH & FILTER */}
         <View style={styles.searchSection}>
           <TextInput 
             style={styles.searchInput}
-            placeholder="Search symptoms or cases..."
+            placeholder="Search symptoms..."
             placeholderTextColor="#999"
             value={searchText}
             onChangeText={setSearchText}
           />
         </View>
 
+        {/* FIRST AID PROTOCOLS */}
         <View style={styles.guideContainer}>
-            <Text style={styles.sectionTitle}>First Aid Reference</Text>
+            <Text style={styles.sectionTitle}>Emergency Protocols</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.guideScroll}>
                 {protocols.map((p) => (
                     <TouchableOpacity key={p.id} style={styles.guideCard} onPress={() => Alert.alert(p.title, p.guide)}>
@@ -252,31 +256,28 @@ const VolunteerDashboard = ({ navigation, route }) => {
             </ScrollView>
         </View>
 
-        {/* ESCALATED ALERTS SECTION (SENIORS ONLY) */}
+        {/* ALERTS FEED: Escalated (High Priority) */}
         {userProfile?.tierId !== 'student' && escalatedAlerts.length > 0 && (
           <View style={{ marginTop: 30 }}>
             <View style={styles.feedHeaderRow}>
-                <Text style={[styles.sectionTitle, { color: COLORS.accentCoral }]}>⚠️ Escalated by Students</Text>
+                <Text style={[styles.sectionTitle, { color: COLORS.accentCoral }]}>⚠️ ESCALATED CASES</Text>
             </View>
             <View style={styles.listContainer}>
                 {escalatedAlerts.map((item) => (
                   <View key={item.id} style={[GlobalStyles.card, { borderColor: COLORS.accentCoral, borderWidth: 1 }]}>
                     <View style={styles.cardHeader}>
                       <View>
-                         <Text style={styles.ownerText}>{item.ownerName}'s Pet</Text>
-                         <Text style={[styles.activeStatusText, { color: COLORS.accentCoral }]}>• NEEDS SENIOR ATTENTION</Text>
+                         <Text style={styles.ownerText}>{item.ownerName}</Text>
+                         <Text style={[styles.activeStatusText, { color: COLORS.accentCoral }]}>• PROFESSIONAL TAKEOVER REQ.</Text>
                       </View>
                       <View style={[styles.pill, { backgroundColor: COLORS.accentCoral }]}>
-                        <Text style={styles.pillText}>ESCALATED</Text>
+                        <Text style={styles.pillText}>CRITICAL</Text>
                       </View>
                     </View>
                     <Text style={styles.symptomsText} numberOfLines={2}>{item.symptoms}</Text>
                     <TouchableOpacity onPress={() => handleAcceptOrEnter(item)}>
-                      <LinearGradient 
-                        colors={['#FF416C', '#FF4B2B']} 
-                        style={styles.acceptBtn}
-                      >
-                        <Text style={GlobalStyles.buttonText}>TAKE OVER CASE</Text>
+                      <LinearGradient colors={['#FF416C', '#FF4B2B']} style={styles.acceptBtn}>
+                        <Text style={GlobalStyles.buttonText}>TAKE OVER NOW</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
@@ -285,29 +286,28 @@ const VolunteerDashboard = ({ navigation, route }) => {
           </View>
         )}
 
+        {/* ALERTS FEED: Standard */}
         <View style={styles.feedHeaderRow}>
-            <Text style={styles.sectionTitle}>Active Emergency Feed</Text>
+            <Text style={styles.sectionTitle}>Live Emergency Feed</Text>
             <View style={styles.livePulse} />
         </View>
 
-        {alerts.length === 0 ? (
-          <View style={styles.emptyFeed}>
-            <Ionicons name="notifications-off-outline" size={40} color="#ccc" />
-            <Text style={styles.emptyFeedText}>No emergencies currently match your tier level.</Text>
-          </View>
-        ) : (
-          <View style={styles.listContainer}>
-            {alerts
-              .filter(a => (a.symptoms || "").toLowerCase().includes(searchText.toLowerCase()))
+        <View style={styles.listContainer}>
+          {alerts.filter(a => a.symptoms?.toLowerCase().includes(searchText.toLowerCase())).length === 0 ? (
+            <View style={styles.emptyFeed}>
+              <Text style={styles.emptyFeedText}>Scanning for nearby emergencies...</Text>
+            </View>
+          ) : (
+            alerts
+              .filter(a => a.symptoms?.toLowerCase().includes(searchText.toLowerCase()))
               .map((item) => {
                 const isMyCase = item.assignedVetId === userProfile?.uid;
-                const isStudent = userProfile?.tierId === 'student';
                 return (
                   <View key={item.id} style={[GlobalStyles.card, isMyCase && styles.activeCard]}>
                     <View style={styles.cardHeader}>
                       <View>
-                         <Text style={styles.ownerText}>{item.ownerName}'s Pet</Text>
-                         {isMyCase && <Text style={styles.activeStatusText}>• CURRENTLY HELPING</Text>}
+                         <Text style={styles.ownerText}>{item.ownerName}</Text>
+                         {isMyCase && <Text style={styles.activeStatusText}>• YOU ARE RESPONDING</Text>}
                       </View>
                       <View style={[styles.pill, { backgroundColor: item.severity === 'high' ? COLORS.accentCoral : COLORS.accentAmber }]}>
                         <Text style={styles.pillText}>{item.severity?.toUpperCase()}</Text>
@@ -320,15 +320,15 @@ const VolunteerDashboard = ({ navigation, route }) => {
                         style={styles.acceptBtn}
                       >
                         <Text style={GlobalStyles.buttonText}>
-                            {isMyCase ? "OPEN CLIPBOARD" : (isStudent ? "OFFER ADVICE" : "RESPOND NOW")}
+                            {isMyCase ? "OPEN MEDICAL CLIPBOARD" : (userProfile?.tierId === 'student' ? "CONSULT" : "RESPOND")}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
                 );
-              })}
-          </View>
-        )}
+              })
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   pointsLabel: { color: COLORS.accentCoral, fontSize: 10, fontWeight: '800' },
   statsSection: { marginTop: 25 },
   statsScroll: { paddingLeft: 25, paddingRight: 10 },
-  statCard: { backgroundColor: '#fff', width: 110, padding: 15, borderRadius: 20, marginRight: 12, elevation: 3, borderLeftWidth: 4 },
+  statCard: { backgroundColor: '#fff', width: 120, padding: 15, borderRadius: 20, marginRight: 12, elevation: 3, borderLeftWidth: 4 },
   statValue: { fontSize: 20, fontWeight: '900', color: COLORS.primaryDark },
   statLabel: { fontSize: 10, color: '#888', fontWeight: 'bold', marginTop: 2 },
   toolsGrid: { flexDirection: 'row', paddingHorizontal: 25, marginTop: 20, justifyContent: 'space-between' },
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   feedHeaderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 30 },
   livePulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2ecc71', marginLeft: 10, marginBottom: 12 },
   emptyFeed: { padding: 40, alignItems: 'center' },
-  emptyFeedText: { color: '#aaa', fontSize: 14, fontWeight: '500', textAlign: 'center', marginTop: 10 },
+  emptyFeedText: { color: '#aaa', fontSize: 14, fontWeight: '500', textAlign: 'center' },
   listContainer: { paddingHorizontal: 25, paddingBottom: 40 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   activeCard: { borderColor: COLORS.accentCoral, borderWidth: 2 },

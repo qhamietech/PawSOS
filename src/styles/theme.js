@@ -1,7 +1,11 @@
 import { StyleSheet, Dimensions } from 'react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
+/**
+ * BRAND IDENTITY
+ * Original brand palette used for consistency across the app.
+ */
 export const BRAND = {
   primaryDark: '#1a1a2e',
   accentCoral: '#FF6B6B',
@@ -11,6 +15,10 @@ export const BRAND = {
   successGreen: '#2ecc71',
 };
 
+/**
+ * COLOR PALETTE
+ * Refined tones for high-end UI/UX.
+ */
 export const COLORS = {
   // Deep, elegant dark tones
   primaryDark: '#1A1A1A',     // Deepest Charcoal
@@ -25,8 +33,26 @@ export const COLORS = {
   ghostWhite: '#F5F7FA',
   grayText: '#A0A0A0',
   pureWhite: '#FFFFFF',
+  errorRed: '#E74C3C',        // Added for validation feedback
 };
 
+/**
+ * DESIGN CONSTANTS
+ * Reusable layout values to ensure consistency.
+ */
+export const SIZES = {
+  width,
+  height,
+  radiusSmall: 12,
+  radiusMedium: 20,
+  radiusLarge: 35,
+  padding: 30,
+};
+
+/**
+ * GLOBAL STYLES
+ * Base styles used by multiple screens to maintain the PawSOS aesthetic.
+ */
 export const GlobalStyles = StyleSheet.create({
   // Clean, white-space heavy container
   container: {
@@ -35,14 +61,14 @@ export const GlobalStyles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    padding: 30,
+    padding: SIZES.padding,
     justifyContent: 'center',
   },
   // Bento-style card with soft, premium shadow
   card: {
     backgroundColor: COLORS.pureWhite,
     padding: 25,
-    borderRadius: 35,
+    borderRadius: SIZES.radiusLarge,
     shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 15 },
     shadowOpacity: 0.08,
@@ -57,6 +83,8 @@ export const GlobalStyles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.primaryDark,
     fontWeight: '500',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)', // Subtle definition
   },
   // The dark capsule button
   mainButton: {
@@ -65,6 +93,12 @@ export const GlobalStyles = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     marginTop: 10,
+    // Add subtle shadow to button for depth
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
   },
   buttonText: {
     color: COLORS.pureWhite,
@@ -72,11 +106,17 @@ export const GlobalStyles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: 1.2,
   },
-  // Added helper for consistent sub-titles in the dashboard
+  // Helper for consistent sub-titles in the dashboard
   sectionTitle: {
     fontSize: 22,
     fontWeight: '900',
     color: COLORS.primaryDark,
     marginBottom: 20,
+  },
+  // Utility: Row helper
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   }
 });

@@ -1,60 +1,80 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Image } from 'react-native';
+import { 
+  View, Text, TextInput, TouchableOpacity, Alert, 
+  ActivityIndicator, KeyboardAvoidingView, Platform, 
+  StatusBar, Image 
+} from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, GlobalStyles } from '../styles/theme'; 
 import { Ionicons } from '@expo/vector-icons'; 
 
+// THEME & STYLES
+import { COLORS, GlobalStyles } from '../styles/theme'; 
+import { styles } from '../styles/LoginStyles';
+
+/**
+ * LOGIN SCREEN
+ * Handles authentication and role-based navigation.
+ * Uses Firebase Auth for login and Firestore to determine user roles 
+ * (Volunteer vs Owner) to direct them to the correct dashboard.
+ */
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // 1. LOGIN LOGIC
   const handleLogin = async () => {
     if (!email || !password) {
-      return Alert.alert("Error", "Please fill in all fields.");
+      return Alert.alert("Required Fields", "Please enter both email and password.");
     }
 
     setLoading(true);
     try {
+      // Authenticate with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+
+      // Fetch user role from Firestore
       const userDoc = await getDoc(doc(db, "users", user.uid));
       
       setLoading(false);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        // Role-based Navigation
         if (userData.role === 'volunteer') {
           navigation.navigate('VolunteerDashboard', { userProfile: userData });
         } else {
           navigation.navigate('OwnerDashboard', { userProfile: userData });
         }
       } else {
-        Alert.alert("Error", "User data not found.");
+        Alert.alert("Account Error", "Profile details not found in database.");
       }
     } catch (error) {
       setLoading(false);
+      // Clean up common Firebase error messages for better UX
       const errorMessage = error.message.includes('auth/invalid-credential') 
-        ? "Invalid email or password." 
+        ? "Invalid email or password. Please try again." 
         : error.message;
       Alert.alert("Login Failed", errorMessage);
     }
   };
 
+  // 2. PASSWORD RESET LOGIC
   const handleForgotPassword = async () => {
     if (!email) {
-      return Alert.alert("Email Required", "Please enter your email address to reset your password.");
+      return Alert.alert("Input Needed", "Enter your email above to receive a reset link.");
     }
 
     try {
       await sendPasswordResetEmail(auth, email);
-      Alert.alert("Success", "Password reset link sent to your email!");
+      Alert.alert("Link Sent", "Check your inbox for password reset instructions!");
     } catch (error) {
-      Alert.alert("Error", error.message);
+      Alert.alert("Reset Failed", error.message);
     }
   };
 
@@ -65,13 +85,13 @@ const LoginScreen = ({ navigation }) => {
     >
       <StatusBar barStyle="dark-content" />
 
-      {/* Decorative Paw Prints Background */}
+      {/* DECORATIVE BACKGROUND ELEMENTS */}
       <Ionicons name="paw" size={120} color={COLORS.primaryDark} style={styles.bgPawTop} />
       <Ionicons name="paw" size={160} color={COLORS.primaryDark} style={styles.bgPawBottom} />
 
       <View style={GlobalStyles.inner}>
         
-        {/* Branding Area with Large Logo */}
+        {/* BRANDING AREA */}
         <View style={styles.headerArea}>
           <Image 
             source={require('../../assets/logo.png')} 
@@ -80,12 +100,12 @@ const LoginScreen = ({ navigation }) => {
           />
         </View>
         
-        {/* Input Card */}
+        {/* INPUT CARD */}
         <View style={GlobalStyles.card}>
           <TextInput 
             style={GlobalStyles.input} 
             placeholder="Email Address" 
-            placeholderTextColor={COLORS.grayText}
+            placeholderTextColor="#999"
             value={email}
             onChangeText={setEmail} 
             autoCapitalize="none"
@@ -93,6 +113,7 @@ const LoginScreen = ({ navigation }) => {
             keyboardType="email-address"
           />
 
+          {/* Password Field with Eye Toggle */}
           <View style={styles.passwordWrapper}>
             <TextInput 
               style={[
@@ -100,7 +121,7 @@ const LoginScreen = ({ navigation }) => {
                 { width: '100%', marginBottom: 0, paddingRight: 45 } 
               ]} 
               placeholder="Password" 
-              placeholderTextColor={COLORS.grayText}
+              placeholderTextColor="#999"
               value={password}
               onChangeText={setPassword} 
               secureTextEntry={!showPassword} 
@@ -108,6 +129,7 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.eyeIcon} 
               onPress={() => setShowPassword(!showPassword)}
+              activeOpacity={0.7}
             >
               <Ionicons 
                 name={showPassword ? "eye" : "eye-off"} 
@@ -121,6 +143,7 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
 
+          {/* Sign In Button */}
           <TouchableOpacity onPress={handleLogin} disabled={loading}>
             <LinearGradient 
               colors={[COLORS.primaryDark, '#2c2c44']} 
@@ -137,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Navigation Links */}
+        {/* REGISTRATION LINKS */}
         <View style={styles.footerLinks}>
           <TouchableOpacity onPress={() => navigation.navigate('OwnerRegister')}>
             <Text style={styles.linkText}>Join as <Text style={styles.bold}>Pet Owner</Text></Text>
@@ -153,84 +176,5 @@ const LoginScreen = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 };
-
-const styles = StyleSheet.create({
-  headerArea: {
-    width: '100%',
-    marginBottom: 10, 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logo: {
-    width: '100%',
-    height: 250,
-  },
-  passwordWrapper: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    position: 'relative', 
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 12, 
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10, 
-    width: 30, 
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: 5,
-  },
-  forgotPasswordText: {
-    color: COLORS.primaryDark,
-    fontSize: 14,
-    fontWeight: '600',
-    opacity: 0.8,
-  },
-  footerLinks: { 
-    marginTop: 40, 
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%'
-  },
-  linkText: { 
-    color: COLORS.primaryDark, 
-    fontSize: 14,
-    opacity: 0.9
-  },
-  bold: {
-    fontWeight: '800',
-    color: COLORS.accentCoral,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.grayText,
-    marginHorizontal: 15,
-    opacity: 0.5
-  },
-  // Paw Decoration Styles
-  bgPawTop: {
-    position: 'absolute',
-    top: 40,
-    right: -20,
-    transform: [{ rotate: '30deg' }],
-    opacity: 0.06,
-  },
-  bgPawBottom: {
-    position: 'absolute',
-    bottom: 20,
-    left: -30,
-    transform: [{ rotate: '-20deg' }],
-    opacity: 0.06,
-  }
-});
 
 export default LoginScreen;

@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreenNative from 'expo-splash-screen';
 
-// --- BRAND PALETTE ---
+// --- BRAND PALETTE (Centralized Design Token) ---
 const BRAND = {
   primaryDark: '#1a1a2e',
   accentCoral: '#FF6B6B',
@@ -17,7 +17,7 @@ const BRAND = {
 
 const { width, height } = Dimensions.get('window');
 
-// Import all your screens
+// --- SCREEN IMPORTS ---
 import LoginScreen from './src/screens/LoginScreen';
 import OwnerRegister from './src/screens/OwnerRegister';
 import VolunteerRegister from './src/screens/VolunteerRegister';
@@ -29,9 +29,9 @@ import LiveCaseScreen from './src/screens/LiveCaseScreen';
 import EducationCenter from './src/screens/EducationCenter';
 import ProfileScreen from './src/screens/ProfileScreen';
 import Leaderboard from './src/screens/Leaderboard';
-import NearbyVets from './src/screens/NearbyVets'; // IMPORTED NEARBY VETS
+import NearbyVets from './src/screens/NearbyVets'; 
 
-// Keep native splash visible while loading
+// Keep native splash visible until app logic is ready
 SplashScreenNative.preventAutoHideAsync();
 
 // 1. CONFIGURE NOTIFICATION BEHAVIOR
@@ -44,11 +44,14 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// 2. CREATE NAVIGATION REF
+// 2. CREATE NAVIGATION REF (Crucial for navigating from notifications)
 export const navigationRef = createNavigationContainerRef();
 const Stack = createStackNavigator();
 
-// --- CUSTOM ANIMATED SPLASH COMPONENT ---
+/**
+ * CUSTOM ANIMATED SPLASH COMPONENT
+ * Portfolio Note: Shows attention to detail & brand identity beyond a static image.
+ */
 function CustomSplashScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -59,7 +62,7 @@ function CustomSplashScreen({ navigation }) {
   const [percent, setPercent] = useState(0);
 
   useEffect(() => {
-    // Entrance Animation
+    // Entrance Sequence
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -74,7 +77,7 @@ function CustomSplashScreen({ navigation }) {
       })
     ]).start();
 
-    // Subtle background float loop
+    // Infinite float loop for background paws
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
@@ -82,7 +85,7 @@ function CustomSplashScreen({ navigation }) {
       ])
     ).start();
 
-    // Text pulsing effect
+    // Text pulsing (Preparing... loop)
     Animated.loop(
       Animated.sequence([
         Animated.timing(textPulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
@@ -90,29 +93,27 @@ function CustomSplashScreen({ navigation }) {
       ])
     ).start();
 
-    // 10-second Progress Bar
+    // Simulated loading progress
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 10000,
+      duration: 3500, // Reduced from 10s for better UX while testing
       useNativeDriver: false, 
     }).start();
 
-    // Update Percentage State
     const percentListener = progressAnim.addListener(({ value }) => {
       setPercent(Math.floor(value * 100));
     });
 
     const timer = setTimeout(() => {
       navigation.replace('Login');
-    }, 10000); 
+    }, 4000); 
 
     return () => {
       progressAnim.removeListener(percentListener);
       clearTimeout(timer);
     };
-  }, [navigation, fadeAnim, scaleAnim]);
+  }, [navigation]);
 
-  // Total width of the progress bar container
   const CONTAINER_WIDTH = width * 0.75;
 
   const barWidth = progressAnim.interpolate({
@@ -129,14 +130,11 @@ function CustomSplashScreen({ navigation }) {
     <View style={styles.splashContainer}>
       <StatusBar barStyle="dark-content" backgroundColor={BRAND.ghostWhite} />
       
-      {/* Background Decorative Elements */}
+      {/* Decorative floating elements */}
       <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], top: '12%', left: '10%' }]}>
         <Text style={styles.pawIcon}>🐾</Text>
       </Animated.View>
       <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], top: '40%', right: '8%' }]}>
-        <Text style={styles.pawIcon}>🐾</Text>
-      </Animated.View>
-      <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], bottom: '25%', left: '15%' }]}>
         <Text style={styles.pawIcon}>🐾</Text>
       </Animated.View>
 
@@ -145,8 +143,7 @@ function CustomSplashScreen({ navigation }) {
         transform: [{ scale: scaleAnim }],
         justifyContent: 'center',
         alignItems: 'center',
-        width: '100%',
-        height: '100%'
+        width: '100%'
       }}>
         <Image 
           source={require('./assets/logo.png')} 
@@ -155,7 +152,7 @@ function CustomSplashScreen({ navigation }) {
         />
       </Animated.View>
 
-      {/* Thick Progress Section with Labels */}
+      {/* Progress Section */}
       <View style={[styles.loaderWrapper, { width: CONTAINER_WIDTH }]}>
         <View style={styles.labelRow}>
            <Animated.Text 
@@ -192,6 +189,7 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
+        // Android-specific notification channel (Required for sound/importance)
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('emergency', {
             name: 'Emergency Alerts',
@@ -200,6 +198,7 @@ export default function App() {
             lightColor: '#FF231F7C',
           });
         }
+        // Artificial delay for splash logic
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (e) {
         console.warn(e);
@@ -210,10 +209,12 @@ export default function App() {
 
     prepare();
 
+    // Notification Listener: Triggers when notification arrives while app is open
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log("SOS Alert Received:", notification);
     });
 
+    // Interaction Listener: Triggers when user taps a notification
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       const navigateToDashboard = () => {
         if (navigationRef.isReady()) {
@@ -237,9 +238,7 @@ export default function App() {
     }
   }, [appIsReady]);
 
-  if (!appIsReady) {
-    return null;
-  }
+  if (!appIsReady) return null;
 
   return (
     <View 
@@ -256,19 +255,23 @@ export default function App() {
             headerTintColor: BRAND.primaryDark,
           }}
         >
+          {/* REGISTRATION & AUTH */}
           <Stack.Screen name="Splash" component={CustomSplashScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="OwnerRegister" component={OwnerRegister} />
           <Stack.Screen name="VolunteerRegister" component={VolunteerRegister} />
           <Stack.Screen name="VolunteerTierSelect" component={VolunteerTierSelect} />
+
+          {/* DASHBOARDS */}
           <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} />
           <Stack.Screen name="VolunteerDashboard" component={VolunteerDashboard} />
+
+          {/* FUNCTIONAL SCREENS */}
           <Stack.Screen name="SOSForm" component={SOSForm} />
           <Stack.Screen name="LiveCaseScreen" component={LiveCaseScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="EducationCenter" component={EducationCenter} />
           <Stack.Screen name="Leaderboard" component={Leaderboard} />
-          {/* ADDED MISSING SCREEN REGISTRATION */}
           <Stack.Screen name="NearbyVets" component={NearbyVets} /> 
         </Stack.Navigator>
       </NavigationContainer>
@@ -277,56 +280,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splashContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: BRAND.ghostWhite,
-  },
-  logoHero: {
-    width: width * 0.9,
-    height: height * 0.8,
-  },
-  bgPaw: {
-    position: 'absolute',
-    opacity: 0.15, 
-  },
-  pawIcon: {
-    fontSize: 70,
-    color: BRAND.primaryDark,
-  },
-  loaderWrapper: {
-    position: 'absolute',
-    bottom: 80,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  loadingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: BRAND.primaryDark,
-    letterSpacing: 0.5,
-  },
-  percentText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: BRAND.accentCoral,
-  },
-  progressContainer: {
-    width: '100%',
-    height: 16,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: BRAND.accentCoral,
-    borderRadius: 20,
-  }
+  splashContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BRAND.ghostWhite },
+  logoHero: { width: width * 0.9, height: height * 0.4 }, // Adjusted height to not overlap loader
+  bgPaw: { position: 'absolute', opacity: 0.15 },
+  pawIcon: { fontSize: 70, color: BRAND.primaryDark },
+  loaderWrapper: { position: 'absolute', bottom: 80 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8, paddingHorizontal: 4 },
+  loadingText: { fontSize: 14, fontWeight: '600', color: BRAND.primaryDark, letterSpacing: 0.5 },
+  percentText: { fontSize: 14, fontWeight: 'bold', color: BRAND.accentCoral },
+  progressContainer: { width: '100%', height: 16, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 20, overflow: 'hidden' },
+  progressBar: { height: '100%', backgroundColor: BRAND.accentCoral, borderRadius: 20 }
 });

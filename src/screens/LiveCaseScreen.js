@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, StatusBar, SafeAreaView, Linking, Keyboard, Platform, Modal } from 'react-native';
+import { 
+  View, Text, TextInput, TouchableOpacity, ScrollView, 
+  Alert, ActivityIndicator, StatusBar, SafeAreaView, Linking, 
+  Keyboard, Platform, Modal 
+} from 'react-native';
 import { db, auth } from '../../firebaseConfig';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-// Ensure these actions exist in your firebaseActions.js
-import { resolveCase, notifySeniorVolunteers, takeOverCase, escalateAndHandOff } from '../services/firebaseActions';
+import { resolveCase, takeOverCase, escalateAndHandOff } from '../services/firebaseActions';
 import { COLORS, GlobalStyles } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
+// IMPORT MODULAR STYLES
+import { styles } from '../styles/LiveCaseStyles';
+
+/**
+ * LIVE CASE SCREEN
+ * Central interface for active emergencies. 
+ * Handles real-time triage updates, medical protocols, and tier-based escalations.
+ */
 const LiveCaseScreen = ({ route, navigation }) => {
   const params = route.params || {};
   const userProfile = params.userProfile || {}; 
@@ -15,6 +26,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
   
   const MAX_CHAR_LIMIT = 500;
 
+  // --- STATE ---
   const [advice, setAdvice] = useState('');
   const [liveData, setLiveData] = useState(params.alertData || null);
   const [loading, setLoading] = useState(false);
@@ -24,10 +36,9 @@ const LiveCaseScreen = ({ route, navigation }) => {
   const isMounted = useRef(true);
   const prevNotes = useRef(params.alertData?.volunteerNotes);
 
+  // --- ROLE LOGIC ---
   const isVolunteer = userProfile.role === 'volunteer' || !!userProfile.tierId;
   const isStudent = userProfile.tierId === 'student';
-
-  // LOGIC: Check if current senior volunteer can take over this case
   const canTakeOver = !isStudent && isVolunteer && liveData?.status === 'escalated';
 
   const PROTOCOLS = [
@@ -37,6 +48,9 @@ const LiveCaseScreen = ({ route, navigation }) => {
     { label: "Choking", text: "Check mouth for objects. If visible, sweep out carefully. If not, apply firm pressure under the ribs." }
   ];
 
+  // ==========================================
+  // 1. DATA SYNC & SUBSCRIPTIONS
+  // ==========================================
   useEffect(() => {
     isMounted.current = true;
     return () => {
@@ -51,8 +65,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
       if (docSnap.exists() && isMounted.current) {
         const newData = docSnap.data();
         
-        // HANDOFF LOGIC: If a student escalates, their ID is removed. 
-        // If they are no longer the assigned vet, kick them back to dashboard.
+        // AUTO-NAVIGATION: Student kicked back to dashboard after escalation
         if (isStudent && newData.status === 'escalated' && newData.assignedVetId !== currentUserId) {
              navigation.replace('VolunteerDashboard', { 
                  userProfile, 
@@ -62,6 +75,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
              return;
         }
 
+        // VISUAL FEEDBACK: Flash effect for owners on instruction update
         if (!isVolunteer && newData.volunteerNotes !== prevNotes.current) {
           setFlashActive(true);
           setTimeout(() => {
@@ -72,10 +86,11 @@ const LiveCaseScreen = ({ route, navigation }) => {
 
         setLiveData({ ...newData, id: docSnap.id });
         
+        // TERMINATION LOGIC: Alert owner when case is closed
         if (!isVolunteer && newData.status === 'resolved') {
           Alert.alert(
             "Case Resolved", 
-            "The volunteer has marked this case as finished. Please check your Profile for the full activity log.",
+            "The volunteer has marked this case as finished.",
             [{ text: "OK", onPress: () => navigation.navigate('Home') }]
           );
         }
@@ -86,32 +101,22 @@ const LiveCaseScreen = ({ route, navigation }) => {
     return () => unsub();
   }, [initialAlertId, isVolunteer, isStudent]);
 
+  // ==========================================
+  // 2. HANDLERS (LOGIC & FIREBASE)
+  // ==========================================
   const handleCall = () => {
-    if (!isVolunteer) {
-        Alert.alert("Notice", "For security, only the responding volunteer can initiate calls.");
-        return;
-    }
-
+    if (!isVolunteer) return;
     if (isStudent) {
-        Alert.alert(
-            "Access Restricted", 
-            "Student tier accounts provide remote triage via text only. Voice calls are reserved for higher tiers."
-        );
+        Alert.alert("Access Restricted", "Student accounts provide remote triage via text only.");
         return;
     }
-
     const phone = liveData?.ownerPhone;
     if (!phone) return Alert.alert("Error", "Phone number not available.");
-    Alert.alert("Call Owner", `Start a call with ${liveData.ownerName}?`, [
-      { text: "Cancel" },
-      { text: "Call", onPress: () => Linking.openURL(`tel:${phone}`) }
-    ]);
+    Linking.openURL(`tel:${phone}`);
   };
 
   const handleSendInstructions = async () => {
     if (!advice.trim()) return Alert.alert("Error", "Please enter instructions first.");
-    if (advice.length > MAX_CHAR_LIMIT) return Alert.alert("Error", "Instruction is too long.");
-
     setLoading(true);
     try {
       await updateDoc(doc(db, 'alerts', initialAlertId), {
@@ -122,7 +127,6 @@ const LiveCaseScreen = ({ route, navigation }) => {
       setAdvice('');
       Keyboard.dismiss();
       setLoading(false);
-      Alert.alert("Sent", "Instructions updated for the owner.");
     } catch (e) { 
       setLoading(false); 
       Alert.alert("Error", "Failed to update instructions.");
@@ -140,97 +144,67 @@ const LiveCaseScreen = ({ route, navigation }) => {
               android: `geo:0,0?q=${liveData.location?.lat},${liveData.location?.lng}`
             });
             Linking.openURL(url);
-          } catch (e) {
-            Alert.alert("Error", "Could not update status.");
-          }
+          } catch (e) { Alert.alert("Error", "Could not update status."); }
       }}
     ]);
   };
 
   const handleEscalate = () => {
-    Alert.alert(
-      "Escalate Case?",
-      "You will receive points for your triage. The case will be moved to the senior dashboard for physical response.",
-      [
+    Alert.alert("Escalate Case?", "Case will be moved to Seniors for physical response.", [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Escalate & Close", 
-          onPress: async () => {
+        { text: "Escalate", onPress: async () => {
             setLoading(true);
-            try {
-              // This triggers the cloud function or firebase action to reward student and wipe assignedVetId
-              const res = await escalateAndHandOff(initialAlertId, currentUserId);
-              if (res.success) {
-                  // Navigation is handled by the useEffect listener above
-                  setLoading(false);
-              } else {
-                  throw new Error(res.error);
-              }
-            } catch (e) {
-              setLoading(false);
-              Alert.alert("Error", "Could not escalate.");
+            const res = await escalateAndHandOff(initialAlertId, currentUserId);
+            if (!res.success) {
+                setLoading(false);
+                Alert.alert("Error", res.error);
             }
-          }
-        }
-      ]
-    );
+        }}
+    ]);
   };
 
   const handleTakeOver = async () => {
-    Alert.alert("Take Over Case", "You will replace the current volunteer as the primary responder.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Confirm", onPress: async () => {
-          setLoading(true);
-          const result = await takeOverCase(initialAlertId, currentUserId, userProfile.name, userProfile.tierId);
-          setLoading(false);
-          if (result.success) {
-            Alert.alert("Success", "You are now the primary responder for this case.");
-          } else {
-            Alert.alert("Error", "Could not take over the case.");
-          }
-      }}
-    ]);
+    setLoading(true);
+    const result = await takeOverCase(initialAlertId, currentUserId, userProfile.name, userProfile.tierId);
+    setLoading(false);
+    if (!result.success) Alert.alert("Error", "Could not take over the case.");
   };
 
   const handleResolve = async () => {
     if (!liveData.volunteerNotes && !advice) {
-        return Alert.alert("Wait", "Please provide medical instructions before resolving the case.");
+        return Alert.alert("Wait", "Please provide medical instructions before resolving.");
     }
-
-    Alert.alert("Resolve Case", "This will close the emergency permanently and save it to the history log.", [
-      { text: "Cancel" },
-      { text: "Resolve", onPress: async () => {
-          setLoading(true);
-          try {
-            const finalAdvice = advice || liveData.volunteerNotes;
-            await updateDoc(doc(db, 'alerts', initialAlertId), { advice: finalAdvice });
-            await resolveCase(initialAlertId, currentUserId);
-            setLoading(false);
-            navigation.replace('VolunteerDashboard', { userProfile, resolvedCase: true });
-          } catch (e) {
-            setLoading(false);
-            Alert.alert("Error", "Could not resolve case.");
-          }
-      }}
-    ]);
+    setLoading(true);
+    try {
+      const finalAdvice = advice || liveData.volunteerNotes;
+      await updateDoc(doc(db, 'alerts', initialAlertId), { advice: finalAdvice });
+      await resolveCase(initialAlertId, currentUserId);
+      setLoading(false);
+      navigation.replace('VolunteerDashboard', { userProfile, resolvedCase: true });
+    } catch (e) {
+      setLoading(false);
+      Alert.alert("Error", "Could not resolve case.");
+    }
   };
 
+  // ==========================================
+  // 3. RENDER
+  // ==========================================
   if (!liveData) return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.accentCoral} /></View>;
 
   return (
     <View style={GlobalStyles.container}>
       <StatusBar barStyle="light-content" />
       
+      {/* HEADER */}
       <View style={[styles.darkHeader, liveData.status === 'on_way' && { backgroundColor: COLORS.accentAmber }]}>
         <SafeAreaView>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Text style={styles.backButtonText}>✕ CLOSE</Text>
           </TouchableOpacity>
-
           <View style={styles.headerContent}>
             <Text style={styles.caseIdText}>CASE #{String(liveData.id).substring(0,8).toUpperCase()}</Text>
             <Text style={styles.headerTitle}>{isVolunteer ? (isStudent ? "Remote Triage Clipboard" : "Medical Clipboard") : "Emergency Report"}</Text>
-            
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>{liveData.status?.toUpperCase()}</Text>
             </View>
@@ -239,7 +213,6 @@ const LiveCaseScreen = ({ route, navigation }) => {
       </View>
 
       <ScrollView contentContainerStyle={{padding: 20}} showsVerticalScrollIndicator={false}>
-        
         {isVolunteer && isStudent && (
             <View style={styles.remoteWarning}>
                 <Ionicons name="shield-checkmark" size={18} color="#2980B9" />
@@ -247,14 +220,13 @@ const LiveCaseScreen = ({ route, navigation }) => {
             </View>
         )}
 
+        {/* INFO CARDS */}
         <View style={styles.section}>
           <Text style={styles.label}>{isVolunteer ? "Owner Information" : "Assigned Volunteer"}</Text>
           <View style={[GlobalStyles.card, styles.responderCard]}>
             <View style={styles.row}>
               <View>
-                <Text style={styles.nameText}>
-                    {isVolunteer ? liveData.ownerName : (liveData.assignedVetName || "Searching...")}
-                </Text>
+                <Text style={styles.nameText}>{isVolunteer ? liveData.ownerName : (liveData.assignedVetName || "Searching...")}</Text>
                 {!isVolunteer && liveData.assignedVetTier && (
                   <View style={styles.tierPill}>
                     <Text style={styles.tierText}>{liveData.assignedVetTier.toUpperCase()} RANK</Text>
@@ -262,10 +234,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
                 )}
               </View>
               {isVolunteer && (
-                <TouchableOpacity 
-                  onPress={handleCall} 
-                  style={[styles.callCircle, isStudent && { backgroundColor: '#bdc3c7' }]}
-                >
+                <TouchableOpacity onPress={handleCall} style={[styles.callCircle, isStudent && { backgroundColor: '#bdc3c7' }]}>
                   <Ionicons name={isStudent ? "call-outline" : "call"} size={20} color="white" />
                 </TouchableOpacity>
               )}
@@ -280,8 +249,9 @@ const LiveCaseScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* INSTRUCTIONS */}
         <View style={styles.section}>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+          <View style={styles.row}>
             <Text style={styles.label}>Medical Instructions</Text>
             {isVolunteer && (
               <TouchableOpacity onPress={() => setShowTemplates(true)}>
@@ -308,11 +278,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={[
-              styles.ownerNoteBox, 
-              !liveData.volunteerNotes && styles.waitingBox,
-              flashActive && styles.flashHighlight
-            ]}>
+            <View style={[styles.ownerNoteBox, !liveData.volunteerNotes && styles.waitingBox, flashActive && styles.flashHighlight]}>
                 {flashActive && <Text style={styles.newUpdateBadge}>NEW UPDATE</Text>}
                 <Text style={[styles.instructionText, !liveData.volunteerNotes && { fontStyle: 'italic', textAlign: 'center' }]}>
                   {liveData.volunteerNotes || "The volunteer is assessing your case. Instructions will appear here."}
@@ -321,6 +287,7 @@ const LiveCaseScreen = ({ route, navigation }) => {
           )}
         </View>
 
+        {/* ACTIONS */}
         {isVolunteer && (
           <View style={{marginTop: 10}}>
             {isStudent && liveData.status !== 'escalated' && (
@@ -328,33 +295,24 @@ const LiveCaseScreen = ({ route, navigation }) => {
                 <Text style={styles.escalateBtnText}>⚠️ ESCALATE TO SENIOR VET</Text>
               </TouchableOpacity>
             )}
-
             {canTakeOver && (
               <TouchableOpacity style={styles.takeOverBtn} onPress={handleTakeOver}>
                 <Text style={styles.takeOverBtnText}>🤝 TAKE OVER THIS CASE</Text>
               </TouchableOpacity>
             )}
-
             {!isStudent && (
                 <TouchableOpacity style={styles.onWayBtn} onPress={handleOnWay}>
                     <Text style={styles.onWayText}>📍 ON MY WAY (NAVIGATE)</Text>
                 </TouchableOpacity>
             )}
-
             <TouchableOpacity style={styles.resolveBtn} onPress={handleResolve}>
               <Text style={styles.resolveBtnText}>MARK AS RESOLVED</Text>
             </TouchableOpacity>
           </View>
         )}
-
-        {!isVolunteer && liveData.status === 'on_way' && (
-          <View style={styles.onWayNotice}>
-            <Text style={styles.onWayNoticeText}>Volunteer is en route to your location.</Text>
-          </View>
-        )}
       </ScrollView>
 
-      {/* Protocol Modal */}
+      {/* MODAL */}
       <Modal visible={showTemplates} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -372,64 +330,9 @@ const LiveCaseScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={COLORS.accentCoral} />
-        </View>
-      )}
+      {loading && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color={COLORS.accentCoral} /></View>}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  darkHeader: { backgroundColor: COLORS.primaryDark, paddingBottom: 25, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  backButton: { position: 'absolute', left: 20, top: Platform.OS === 'ios' ? 0 : 10, zIndex: 10, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8 },
-  backButtonText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
-  headerContent: { alignItems: 'center' },
-  caseIdText: { color: COLORS.accentCoral, fontWeight: 'bold', fontSize: 10, letterSpacing: 1 },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: 'bold', textAlign: 'center', paddingHorizontal: 40 },
-  statusBadge: { marginTop: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.2)' },
-  statusText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
-  section: { marginBottom: 20 },
-  label: { fontSize: 11, color: '#888', fontWeight: '900', textTransform: 'uppercase', marginBottom: 8 },
-  responderCard: { paddingVertical: 15 },
-  reportCard: { backgroundColor: '#F9FAFB', borderLeftWidth: 4, borderLeftColor: COLORS.primaryDark },
-  bodyText: { fontSize: 15, color: '#444', lineHeight: 22 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  nameText: { fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark },
-  tierPill: { backgroundColor: COLORS.accentCoral + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 4, alignSelf: 'flex-start' },
-  tierText: { color: COLORS.accentCoral, fontSize: 10, fontWeight: '900' },
-  callCircle: { backgroundColor: COLORS.accentCoral, width: 45, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
-  input: { fontSize: 16, minHeight: 100, textAlignVertical: 'top', padding: 10 },
-  charCounter: { textAlign: 'right', fontSize: 10, color: '#aaa', paddingRight: 10 },
-  sendBtn: { backgroundColor: COLORS.primaryDark, padding: 15, borderRadius: 12, marginTop: 10, alignItems: 'center' },
-  sendBtnText: { color: 'white', fontWeight: 'bold' },
-  onWayBtn: { backgroundColor: COLORS.accentAmber, height: 55, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  onWayText: { color: COLORS.primaryDark, fontWeight: 'bold' },
-  resolveBtn: { backgroundColor: '#2ecc71', height: 55, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 15 },
-  resolveBtnText: { color: 'white', fontWeight: 'bold' },
-  ownerNoteBox: { padding: 20, backgroundColor: '#EBF5FF', borderRadius: 20, borderStyle: 'dashed', borderWidth: 1, borderColor: '#3498DB' },
-  waitingBox: { backgroundColor: '#FDF7E2', borderColor: '#F1C40F' },
-  flashHighlight: { backgroundColor: '#FFF9C4', borderColor: COLORS.accentAmber, borderWidth: 2 },
-  newUpdateBadge: { alignSelf: 'center', backgroundColor: COLORS.accentAmber, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 8, fontSize: 10, fontWeight: 'bold' },
-  instructionText: { fontSize: 17, color: COLORS.primaryDark, lineHeight: 25, fontWeight: '600' },
-  onWayNotice: { marginTop: 20, padding: 15, backgroundColor: COLORS.accentAmber, borderRadius: 15, alignItems: 'center' },
-  onWayNoticeText: { fontWeight: 'bold', color: COLORS.primaryDark },
-  remoteWarning: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E1F5FE', padding: 10, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#B3E5FC' },
-  remoteWarningText: { color: '#0288D1', fontSize: 12, fontWeight: '800', marginLeft: 8 },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  protocolLink: { color: COLORS.primaryDark, fontSize: 11, fontWeight: 'bold', textDecorationLine: 'underline' },
-  escalateBtn: { backgroundColor: COLORS.accentCoral, height: 55, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  escalateBtnText: { color: 'white', fontWeight: 'bold' },
-  takeOverBtn: { backgroundColor: '#8E44AD', height: 55, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  takeOverBtnText: { color: 'white', fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 20, minHeight: 300 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: COLORS.primaryDark },
-  templateItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  templateLabel: { fontSize: 16, color: '#444', fontWeight: '600' },
-  closeModal: { backgroundColor: COLORS.primaryDark, padding: 15, borderRadius: 12, marginTop: 20, alignItems: 'center' }
-});
 
 export default LiveCaseScreen;
