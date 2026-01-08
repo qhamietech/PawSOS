@@ -1,14 +1,27 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Platform, View } from 'react-native'; 
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Platform, View, Animated, StyleSheet, StatusBar, Image, Dimensions, Text } from 'react-native'; 
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'; 
 import { createStackNavigator } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
-import * as SplashScreen from 'expo-splash-screen';
+import * as SplashScreenNative from 'expo-splash-screen';
+
+// --- BRAND PALETTE ---
+const BRAND = {
+  primaryDark: '#1a1a2e',
+  accentCoral: '#FF6B6B',
+  accentAmber: '#FFB86C',
+  pureWhite: '#FFFFFF',
+  ghostWhite: '#F8F9FA',
+  successGreen: '#2ecc71',
+};
+
+const { width, height } = Dimensions.get('window');
 
 // Import all your screens
 import LoginScreen from './src/screens/LoginScreen';
 import OwnerRegister from './src/screens/OwnerRegister';
 import VolunteerRegister from './src/screens/VolunteerRegister';
+import VolunteerTierSelect from './src/screens/VolunteerTierSelect'; 
 import OwnerDashboard from './src/screens/OwnerDashboard';
 import VolunteerDashboard from './src/screens/VolunteerDashboard';
 import SOSForm from './src/screens/SOSForm'; 
@@ -16,9 +29,10 @@ import LiveCaseScreen from './src/screens/LiveCaseScreen';
 import EducationCenter from './src/screens/EducationCenter';
 import ProfileScreen from './src/screens/ProfileScreen';
 import Leaderboard from './src/screens/Leaderboard';
+import NearbyVets from './src/screens/NearbyVets'; // IMPORTED NEARBY VETS
 
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+// Keep native splash visible while loading
+SplashScreenNative.preventAutoHideAsync();
 
 // 1. CONFIGURE NOTIFICATION BEHAVIOR
 Notifications.setNotificationHandler({
@@ -32,8 +46,145 @@ Notifications.setNotificationHandler({
 
 // 2. CREATE NAVIGATION REF
 export const navigationRef = createNavigationContainerRef();
-
 const Stack = createStackNavigator();
+
+// --- CUSTOM ANIMATED SPLASH COMPONENT ---
+function CustomSplashScreen({ navigation }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current; 
+  const floatAnim = useRef(new Animated.Value(0)).current;    
+  const textPulseAnim = useRef(new Animated.Value(0.4)).current; 
+
+  const [percent, setPercent] = useState(0);
+
+  useEffect(() => {
+    // Entrance Animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 10,
+        friction: 5,
+        useNativeDriver: true,
+      })
+    ]).start();
+
+    // Subtle background float loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 3000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Text pulsing effect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(textPulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(textPulseAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // 10-second Progress Bar
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 10000,
+      useNativeDriver: false, 
+    }).start();
+
+    // Update Percentage State
+    const percentListener = progressAnim.addListener(({ value }) => {
+      setPercent(Math.floor(value * 100));
+    });
+
+    const timer = setTimeout(() => {
+      navigation.replace('Login');
+    }, 10000); 
+
+    return () => {
+      progressAnim.removeListener(percentListener);
+      clearTimeout(timer);
+    };
+  }, [navigation, fadeAnim, scaleAnim]);
+
+  // Total width of the progress bar container
+  const CONTAINER_WIDTH = width * 0.75;
+
+  const barWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, CONTAINER_WIDTH],
+  });
+
+  const bgMove = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -20],
+  });
+
+  return (
+    <View style={styles.splashContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor={BRAND.ghostWhite} />
+      
+      {/* Background Decorative Elements */}
+      <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], top: '12%', left: '10%' }]}>
+        <Text style={styles.pawIcon}>🐾</Text>
+      </Animated.View>
+      <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], top: '40%', right: '8%' }]}>
+        <Text style={styles.pawIcon}>🐾</Text>
+      </Animated.View>
+      <Animated.View style={[styles.bgPaw, { transform: [{ translateY: bgMove }], bottom: '25%', left: '15%' }]}>
+        <Text style={styles.pawIcon}>🐾</Text>
+      </Animated.View>
+
+      <Animated.View style={{ 
+        opacity: fadeAnim, 
+        transform: [{ scale: scaleAnim }],
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%'
+      }}>
+        <Image 
+          source={require('./assets/logo.png')} 
+          style={styles.logoHero}
+          resizeMode="contain"
+        />
+      </Animated.View>
+
+      {/* Thick Progress Section with Labels */}
+      <View style={[styles.loaderWrapper, { width: CONTAINER_WIDTH }]}>
+        <View style={styles.labelRow}>
+           <Animated.Text 
+             style={[
+               styles.loadingText, 
+               { opacity: percent === 100 ? 1 : textPulseAnim },
+               percent === 100 && { color: BRAND.successGreen }
+             ]}
+           >
+             {percent === 100 ? 'Rescue Ready!' : 'Preparing for rescue...'}
+           </Animated.Text>
+           <Text style={[styles.percentText, percent === 100 && { color: BRAND.successGreen }]}>
+             {percent}%
+           </Text>
+        </View>
+
+        <View style={styles.progressContainer}>
+          <Animated.View 
+            style={[
+              styles.progressBar, 
+              { width: barWidth },
+              percent === 100 && { backgroundColor: BRAND.successGreen }
+            ] } 
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -41,7 +192,6 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
-        // 3. CONFIGURE ANDROID CHANNEL
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('emergency', {
             name: 'Emergency Alerts',
@@ -50,10 +200,7 @@ export default function App() {
             lightColor: '#FF231F7C',
           });
         }
-
-        // Artificial delay to show logo/assets
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (e) {
         console.warn(e);
       } finally {
@@ -63,19 +210,15 @@ export default function App() {
 
     prepare();
 
-    // Notification Listeners
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log("SOS Alert Received while app open:", notification);
+      console.log("SOS Alert Received:", notification);
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log("User tapped notification:", response.notification.request.content.data);
-      
       const navigateToDashboard = () => {
         if (navigationRef.isReady()) {
           navigationRef.navigate('VolunteerDashboard');
         } else {
-          // Retry if navigation isn't ready yet
           setTimeout(navigateToDashboard, 500);
         }
       };
@@ -88,10 +231,9 @@ export default function App() {
     };
   }, []);
 
-  // 4. HIDE SPLASH SCREEN WHEN APP IS READY
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady) {
-      await SplashScreen.hideAsync();
+      await SplashScreenNative.hideAsync();
     }
   }, [appIsReady]);
 
@@ -101,58 +243,90 @@ export default function App() {
 
   return (
     <View 
-      style={{ flex: 1, backgroundColor: '#d63031' }} 
+      style={{ flex: 1, backgroundColor: BRAND.ghostWhite }} 
       onLayout={onLayoutRootView}
     >
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator 
-          initialRouteName="Login"
+          initialRouteName="Splash"
           screenOptions={{
-            headerStyle: { backgroundColor: '#f8f9fa' },
-            headerTitleStyle: { fontWeight: 'bold' },
+            headerShown: false, 
+            headerStyle: { backgroundColor: BRAND.ghostWhite },
+            headerTitleStyle: { fontWeight: 'bold', color: BRAND.primaryDark },
+            headerTintColor: BRAND.primaryDark,
           }}
         >
-          {/* Auth Screens */}
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="OwnerRegister" component={OwnerRegister} options={{ title: 'Create Owner Account' }} />
-          <Stack.Screen name="VolunteerRegister" component={VolunteerRegister} options={{ title: 'Join as Volunteer' }} />
-
-          {/* Dashboards */}
-          <Stack.Screen 
-            name="OwnerDashboard" 
-            component={OwnerDashboard} 
-            options={{ 
-              headerLeft: () => null, 
-              gestureEnabled: false,
-              title: 'Pet Owner Portal'
-            }} 
-          />
-          <Stack.Screen 
-            name="VolunteerDashboard" 
-            component={VolunteerDashboard} 
-            options={{ 
-              headerLeft: () => null, 
-              gestureEnabled: false,
-              title: 'Responder Portal'
-            }} 
-          />
-
-          {/* Feature Screens */}
-          <Stack.Screen 
-            name="SOSForm" 
-            component={SOSForm} 
-            options={{ title: 'Emergency Details', headerTintColor: '#d63031' }} 
-          />
-          <Stack.Screen 
-            name="LiveCaseScreen" 
-            component={LiveCaseScreen} 
-            options={{ title: 'Medical Clipboard', headerLeft: () => null }} 
-          />
-          <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'My Profile' }} />
-          <Stack.Screen name="EducationCenter" component={EducationCenter} options={{ title: 'First Aid Guides' }} />
-          <Stack.Screen name="Leaderboard" component={Leaderboard} options={{ title: 'Top Responders' }} />
+          <Stack.Screen name="Splash" component={CustomSplashScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="OwnerRegister" component={OwnerRegister} />
+          <Stack.Screen name="VolunteerRegister" component={VolunteerRegister} />
+          <Stack.Screen name="VolunteerTierSelect" component={VolunteerTierSelect} />
+          <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} />
+          <Stack.Screen name="VolunteerDashboard" component={VolunteerDashboard} />
+          <Stack.Screen name="SOSForm" component={SOSForm} />
+          <Stack.Screen name="LiveCaseScreen" component={LiveCaseScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="EducationCenter" component={EducationCenter} />
+          <Stack.Screen name="Leaderboard" component={Leaderboard} />
+          {/* ADDED MISSING SCREEN REGISTRATION */}
+          <Stack.Screen name="NearbyVets" component={NearbyVets} /> 
         </Stack.Navigator>
       </NavigationContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: BRAND.ghostWhite,
+  },
+  logoHero: {
+    width: width * 0.9,
+    height: height * 0.8,
+  },
+  bgPaw: {
+    position: 'absolute',
+    opacity: 0.15, 
+  },
+  pawIcon: {
+    fontSize: 70,
+    color: BRAND.primaryDark,
+  },
+  loaderWrapper: {
+    position: 'absolute',
+    bottom: 80,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND.primaryDark,
+    letterSpacing: 0.5,
+  },
+  percentText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: BRAND.accentCoral,
+  },
+  progressContainer: {
+    width: '100%',
+    height: 16,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: BRAND.accentCoral,
+    borderRadius: 20,
+  }
+});

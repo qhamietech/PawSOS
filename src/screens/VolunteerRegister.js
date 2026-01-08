@@ -1,117 +1,155 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Dimensions, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Dimensions, SafeAreaView, Image, StatusBar, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, GlobalStyles } from '../styles/theme'; 
+import { Ionicons } from '@expo/vector-icons'; 
 
-const { width } = Dimensions.get('window');
-
-const VolunteerRegistration = ({ navigation }) => {
-  const [tier, setTier] = useState('student');
+const VolunteerRegister = ({ navigation }) => {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const tiers = [
-    { id: 'student', title: 'Student', desc: 'Low Severity', emoji: '🎓' },
-    { id: 'graduate', title: 'Graduate', desc: 'Mid Severity', emoji: '📜' },
-    { id: 'qualified', title: 'Expert', desc: 'All Cases', emoji: '🩺' },
-  ];
+  const handleNext = () => {
+    // Trim inputs to prevent invisible character errors in Firebase/Navigation
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+
+    if (!cleanName || !cleanEmail || !password) {
+      return Alert.alert("Error", "Please fill in all fields to continue.");
+    }
+
+    // Basic email validation
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(cleanEmail)) {
+      return Alert.alert("Error", "Please enter a valid email address.");
+    }
+
+    // Password length validation
+    if (password.length < 6) {
+      return Alert.alert("Error", "Password must be at least 6 characters.");
+    }
+
+    // Navigate to the next step and pass the cleaned data
+    // The 'role' is intentionally NOT set here, it is handled in Step 2
+    navigation.navigate('VolunteerTierSelect', { 
+      baseData: { 
+        name: cleanName, 
+        email: cleanEmail, 
+        password: password 
+      } 
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* HEADER - Inspired by the "Hi, Andry" screen */}
-        <View style={styles.headerSection}>
-          <Text style={styles.brandTitle}>PawSOS</Text>
-          <Text style={styles.mainHeading}>Join the{'\n'}Rescue Team</Text>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Background Decorative Elements */}
+      <Ionicons name="paw" size={120} color={COLORS.primaryDark} style={styles.bgPawTop} />
+      <Ionicons name="paw" size={160} color={COLORS.primaryDark} style={styles.bgPawBottom} />
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerArea}>
+          <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.mainHeading}>Rescue Team</Text>
+          <Text style={styles.subHeading}>Step 1: Personal Details</Text>
         </View>
 
-        {/* INPUT SECTION - Clean & Minimal */}
-        <View style={styles.inputCard}>
+        <View style={GlobalStyles.card}>
           <Text style={styles.inputLabel}>FULL NAME</Text>
           <TextInput 
-            style={styles.input} 
-            placeholder="Dr. Jane Doe"
-            placeholderTextColor="#95a5a6"
-            value={name}
-            onChangeText={setName}
+            style={GlobalStyles.input} 
+            placeholder="Full Name" 
+            placeholderTextColor={COLORS.grayText} 
+            value={name} 
+            onChangeText={setName} 
           />
+
+          <Text style={styles.inputLabel}>EMAIL</Text>
+          <TextInput 
+            style={GlobalStyles.input} 
+            placeholder="Email" 
+            placeholderTextColor={COLORS.grayText} 
+            value={email} 
+            onChangeText={setEmail} 
+            autoCapitalize="none" 
+            keyboardType="email-address" 
+            autoCorrect={false}
+          />
+
+          <Text style={styles.inputLabel}>PASSWORD</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput 
+              style={styles.passwordInput} 
+              placeholder="••••••••"
+              placeholderTextColor={COLORS.grayText}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity 
+                style={styles.eyeBtn} 
+                onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons 
+                name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                size={22} 
+                color={COLORS.primaryDark} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* TIER SELECTION - Inspired by the circular pet cards */}
-        <Text style={styles.sectionTitle}>Choose your Qualification</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tierScroll}>
-          {tiers.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              onPress={() => setTier(item.id)}
-              style={[styles.tierCard, tier === item.id && styles.activeTier]}
-            >
-              <View style={[styles.circle, tier === item.id ? styles.activeCircle : styles.inactiveCircle]}>
-                <Text style={styles.emoji}>{item.emoji}</Text>
-              </View>
-              <Text style={[styles.tierTitle, tier === item.id && styles.activeText]}>{item.title}</Text>
-              <Text style={styles.tierDesc}>{item.desc}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* FOOTER ACTION - Inspired by the "Adoption" button */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.mainBtn} onPress={() => Alert.alert("Registering...")}>
-            <LinearGradient 
-              colors={['#1A1A1A', '#333333']} 
-              style={styles.gradientBtn}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 0}}
-            >
-              <Text style={styles.btnText}>Complete Profile</Text>
-              <View style={styles.btnIconCircle}>
-                <Text style={{color: '#000', fontWeight: 'bold'}}>→</Text>
-              </View>
+          <TouchableOpacity onPress={handleNext}>
+            <LinearGradient colors={[COLORS.primaryDark, '#2c2c44']} style={styles.mainBtn}>
+              <Text style={styles.btnText}>Choose My Tier</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" style={{marginLeft: 10}} />
             </LinearGradient>
           </TouchableOpacity>
-        </View>
 
+          <TouchableOpacity 
+            style={styles.signInLink} 
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.signInText}>
+              Already a member? <Text style={styles.signInBold}>Sign In</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#A8E6CF' }, // That mint color from your image
-  scrollContent: { padding: 25 },
-  headerSection: { marginTop: 40, marginBottom: 30 },
-  brandTitle: { fontSize: 14, fontWeight: '800', letterSpacing: 2, color: '#1A1A1A', marginBottom: 10 },
-  mainHeading: { fontSize: 38, fontWeight: '900', color: '#1A1A1A', lineHeight: 42 },
-  
-  inputCard: { backgroundColor: '#fff', padding: 20, borderRadius: 25, marginBottom: 30 },
-  inputLabel: { fontSize: 10, fontWeight: '900', color: '#bdc3c7', letterSpacing: 1, marginBottom: 8 },
-  input: { fontSize: 18, fontWeight: '600', color: '#1A1A1A' },
-
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', marginBottom: 15 },
-  tierScroll: { marginHorizontal: -25, paddingLeft: 25 },
-  tierCard: { 
-    backgroundColor: '#fff', 
-    width: width * 0.4, 
-    padding: 20, 
-    borderRadius: 30, 
-    marginRight: 15,
+  container: { flex: 1, backgroundColor: '#F8F9FA' }, 
+  scrollContent: { padding: 25, paddingBottom: 40 },
+  headerArea: { width: '100%', marginBottom: 20, alignItems: 'center' },
+  logo: { width: '100%', height: 100 },
+  mainHeading: { fontSize: 28, fontWeight: '900', color: COLORS.primaryDark, marginTop: 5 },
+  subHeading: { fontSize: 14, color: COLORS.grayText, fontWeight: '600', marginTop: 4 },
+  inputLabel: { fontSize: 10, fontWeight: '900', color: COLORS.primaryDark, letterSpacing: 1, marginBottom: 4 },
+  passwordContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20
+    backgroundColor: '#f1f2f6',
+    borderRadius: 10,
+    marginBottom: 15,
+    paddingHorizontal: 15,
+    height: 55,
   },
-  activeTier: { backgroundColor: '#1A1A1A' },
-  circle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  inactiveCircle: { backgroundColor: '#f1f2f6' },
-  activeCircle: { backgroundColor: '#333' },
-  emoji: { fontSize: 30 },
-  tierTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
-  tierDesc: { fontSize: 12, color: '#95a5a6', marginTop: 4 },
-  activeText: { color: '#fff' },
-
-  footer: { marginTop: 20 },
-  mainBtn: { borderRadius: 40, overflow: 'hidden', height: 70 },
-  gradientBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
-  btnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  btnIconCircle: { backgroundColor: '#fff', width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }
+  passwordInput: { flex: 1, height: '100%', fontSize: 16, color: '#1A1A1A' },
+  eyeBtn: { padding: 5, justifyContent: 'center', alignItems: 'center' },
+  footer: { marginTop: 30 },
+  mainBtn: { borderRadius: 30, height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  signInLink: { marginTop: 20, alignItems: 'center' },
+  signInText: { color: COLORS.primaryDark, fontSize: 14, opacity: 0.8 },
+  signInBold: { fontWeight: 'bold', textDecorationLine: 'underline' },
+  bgPawTop: { position: 'absolute', top: 40, right: -20, transform: [{ rotate: '30deg' }], opacity: 0.05 },
+  bgPawBottom: { position: 'absolute', bottom: 20, left: -30, transform: [{ rotate: '-20deg' }], opacity: 0.05 }
 });
 
-export default VolunteerRegistration;
+export default VolunteerRegister;

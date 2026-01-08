@@ -2,6 +2,15 @@ import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
+export const BRAND = {
+  primaryDark: '#1a1a2e',
+  accentCoral: '#FF6B6B',
+  accentAmber: '#FFB86C',
+  pureWhite: '#FFFFFF',
+  ghostWhite: '#F8F9FA',
+  successGreen: '#2ecc71',
+};
+
 export const COLORS = {
   // Deep, elegant dark tones
   primaryDark: '#1A1A1A',     // Deepest Charcoal
@@ -63,4 +72,11 @@ export const GlobalStyles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: 1.2,
   },
+  // Added helper for consistent sub-titles in the dashboard
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+    marginBottom: 20,
+  }
 });

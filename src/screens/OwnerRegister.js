@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Image } from 'react-native';
 import { registerOwner } from '../services/firebaseActions';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, GlobalStyles } from '../styles/theme'; 
+import { Ionicons } from '@expo/vector-icons'; 
 
 const OwnerRegister = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -8,6 +11,7 @@ const OwnerRegister = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSignup = async () => {
     if (!name || !email || !password || !phone) {
@@ -27,27 +31,165 @@ const OwnerRegister = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Owner Account</Text>
-      
-      <TextInput style={styles.input} placeholder="Full Name" onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Email" onChangeText={setEmail} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Phone Number" onChangeText={setPhone} keyboardType="phone-pad" />
-      <TextInput style={styles.input} placeholder="Password" onChangeText={setPassword} secureTextEntry />
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={GlobalStyles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
-      <TouchableOpacity style={styles.btn} onPress={handleSignup} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>REGISTER</Text>}
-      </TouchableOpacity>
-    </View>
+      {/* Decorative Paw Prints Background */}
+      <Ionicons name="paw" size={120} color={COLORS.primaryDark} style={styles.bgPawTop} />
+      <Ionicons name="paw" size={160} color={COLORS.primaryDark} style={styles.bgPawBottom} />
+
+      <View style={GlobalStyles.inner}>
+        
+        {/* Branding Area with Large Logo */}
+        <View style={styles.headerArea}>
+          <Image 
+            source={require('../../assets/logo.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Create Pet Owner Account</Text>
+        </View>
+        
+        {/* Input Card */}
+        <View style={GlobalStyles.card}>
+          <TextInput 
+            style={GlobalStyles.input} 
+            placeholder="Full Name" 
+            placeholderTextColor={COLORS.grayText}
+            onChangeText={setName} 
+            value={name}
+          />
+
+          <TextInput 
+            style={GlobalStyles.input} 
+            placeholder="Email Address" 
+            placeholderTextColor={COLORS.grayText}
+            onChangeText={setEmail} 
+            value={email}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+
+          <TextInput 
+            style={GlobalStyles.input} 
+            placeholder="Phone Number" 
+            placeholderTextColor={COLORS.grayText}
+            onChangeText={setPhone} 
+            value={phone}
+            keyboardType="phone-pad"
+          />
+
+          <View style={styles.passwordWrapper}>
+            <TextInput 
+              style={[
+                GlobalStyles.input, 
+                { width: '100%', marginBottom: 0, paddingRight: 45 } 
+              ]} 
+              placeholder="Password" 
+              placeholderTextColor={COLORS.grayText}
+              onChangeText={setPassword} 
+              value={password}
+              secureTextEntry={!showPassword} 
+            />
+            <TouchableOpacity 
+              style={styles.eyeIcon} 
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons 
+                name={showPassword ? "eye" : "eye-off"} 
+                size={22} 
+                color={COLORS.primaryDark} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity onPress={handleSignup} disabled={loading} style={{ marginTop: 10 }}>
+            <LinearGradient 
+              colors={[COLORS.primaryDark, '#2c2c44']} 
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 0}}
+              style={[GlobalStyles.mainButton, loading && { opacity: 0.7 }]}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={GlobalStyles.buttonText}>REGISTER</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backBtnText}>Already have an account? <Text style={{fontWeight: 'bold'}}>Sign In</Text></Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 25, justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 26, fontWeight: 'bold', color: '#d63031', marginBottom: 25 },
-  input: { backgroundColor: '#f1f2f6', padding: 15, borderRadius: 10, marginBottom: 15 },
-  btn: { backgroundColor: '#d63031', padding: 20, borderRadius: 10, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  headerArea: {
+    width: '100%',
+    marginBottom: 10, 
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: '100%',
+    height: 180, // Slightly smaller than login to fit more inputs
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+    marginTop: -10,
+    marginBottom: 10,
+  },
+  passwordWrapper: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    position: 'relative', 
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12, 
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10, 
+    width: 30, 
+  },
+  backBtn: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  backBtnText: {
+    color: COLORS.primaryDark,
+    fontSize: 14,
+    opacity: 0.8,
+  },
+  bgPawTop: {
+    position: 'absolute',
+    top: 40,
+    right: -20,
+    transform: [{ rotate: '30deg' }],
+    opacity: 0.05,
+  },
+  bgPawBottom: {
+    position: 'absolute',
+    bottom: 20,
+    left: -30,
+    transform: [{ rotate: '-20deg' }],
+    opacity: 0.05,
+  }
 });
 
 export default OwnerRegister;

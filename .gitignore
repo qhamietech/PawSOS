@@ -26,12 +26,23 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# macOS & Keys
 .DS_Store
 *.pem
+*.key
+*.cert
 
-# local env files
+# local env files - THIS COVERS EVERYTHING
+.env
+.env.local
+.env.development
+.env.test
+.env.production
 .env*.local
+
+# generated native folders
+/ios
+/android
 
 # typescript
 *.tsbuildinfo

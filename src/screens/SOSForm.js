@@ -5,7 +5,8 @@ import * as Location from 'expo-location';
 import { triggerSOS } from '../services/firebaseActions'; 
 import { auth } from '../../firebaseConfig'; 
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, GlobalStyles } from '../styles/theme'; // Import your clean theme
+import { COLORS, GlobalStyles } from '../styles/theme'; 
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -16,7 +17,7 @@ const SOSForm = ({ navigation }) => {
 
   // LOGIC PRESERVED: handleSOS function remains exactly as requested
   const handleSOS = async () => {
-    if (!symptoms) return Alert.alert("Error", "Please describe the symptoms.");
+    if (!symptoms.trim()) return Alert.alert("Error", "Please describe the symptoms.");
 
     setLoading(true);
     try {
@@ -47,7 +48,8 @@ const SOSForm = ({ navigation }) => {
       setLoading(false);
       if (res.success) {
         Alert.alert("SOS Sent!", "Volunteers have been notified.");
-        navigation.goBack();
+        // Redirecting back to dashboard where the "Active Case" logic will now pick up the alert
+        navigation.goBack(); 
       } else {
         Alert.alert("Error", res.error);
       }
@@ -61,7 +63,18 @@ const SOSForm = ({ navigation }) => {
   return (
     <SafeAreaView style={GlobalStyles.container}>
       <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
+      
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeCircle}>
+           <Ionicons name="close" size={24} color={COLORS.primaryDark} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.scrollPadding} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         
         {/* HEADER: Clean & Authoritative */}
         <View style={styles.header}>
@@ -74,7 +87,7 @@ const SOSForm = ({ navigation }) => {
 
         {/* SEVERITY: Using the "Bento" card style from theme */}
         <Text style={styles.sectionLabel}>Severity Level</Text>
-        <View style={GlobalStyles.card}>
+        <View style={[GlobalStyles.card, styles.pickerCard]}>
           <View style={styles.pickerWrapper}>
             <Picker 
               selectedValue={severity} 
@@ -96,6 +109,7 @@ const SOSForm = ({ navigation }) => {
           placeholder="Describe symptoms (e.g. bleeding, limping, lethargy)..." 
           multiline 
           numberOfLines={6}
+          value={symptoms}
           onChangeText={setSymptoms}
           placeholderTextColor={COLORS.grayText}
         />
@@ -118,7 +132,7 @@ const SOSForm = ({ navigation }) => {
               <View style={styles.btnContent}>
                 <Text style={GlobalStyles.buttonText}>BROADCAST SOS</Text>
                 <View style={styles.btnIconCircle}>
-                   <Text style={{color: COLORS.primaryDark, fontWeight: 'bold'}}>→</Text>
+                    <Ionicons name="arrow-forward" size={20} color={COLORS.primaryDark} />
                 </View>
               </View>
             )}
@@ -131,6 +145,8 @@ const SOSForm = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  topBar: { paddingHorizontal: 25, paddingTop: 10, alignItems: 'flex-end' },
+  closeCircle: { backgroundColor: COLORS.ghostWhite, width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   scrollPadding: { padding: 25, paddingBottom: 50 },
   header: { marginBottom: 30, marginTop: 10 },
   brandText: { 
@@ -163,8 +179,9 @@ const styles = StyleSheet.create({
     marginTop: 25 
   },
   
-  pickerWrapper: { height: 50, justifyContent: 'center' },
-  picker: { color: COLORS.primaryDark, marginLeft: -10 },
+  pickerCard: { paddingVertical: 0, paddingHorizontal: 15 },
+  pickerWrapper: { height: 60, justifyContent: 'center' },
+  picker: { color: COLORS.primaryDark },
 
   textInputLarge: { 
     backgroundColor: COLORS.pureWhite, 

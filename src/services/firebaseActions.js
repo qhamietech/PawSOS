@@ -11,23 +11,30 @@ import {
 } from "firebase/auth";
 import * as Notifications from 'expo-notifications';
 
-// 1. REGISTER VOLUNTEER
-export const registerVolunteer = async (email, password, fullName, tier, proofInfo) => {
+// 1. REGISTER VOLUNTEER - ADDED resolvedCount
+export const registerVolunteer = async (email, password, fullName, photo, extraData) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    await setDoc(doc(db, "users", user.uid), {
+    const userData = {
       uid: user.uid,
       name: fullName,
       email: email,
       role: 'volunteer',
-      tier: tier, 
-      proof: proofInfo,
+      tierId: extraData.tierId || 'student', 
+      university: extraData.university || null,
+      studentId: extraData.studentId || null,
+      certificateNo: extraData.certificateNo || null,
+      licenseNo: extraData.licenseNo || null,
       points: 0,
+      resolvedCount: 0, 
       createdAt: serverTimestamp(),
-    });
-    return { success: true, uid: user.uid };
+    };
+
+    await setDoc(doc(db, "users", user.uid), userData);
+    
+    return { success: true, uid: user.uid, user: userData };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -69,14 +76,13 @@ export const triggerSOS = async (userId, userName, petSymptoms, location, severi
       lng: location.lng || 0
     } : null;
 
-    // Get owner phone for the clipboard call button
     const ownerDoc = await getDoc(doc(db, 'users', userId));
     const ownerPhone = ownerDoc.exists() ? ownerDoc.data().phone : "";
 
     const newDoc = await addDoc(alertsRef, {
       ownerId: userId,
       ownerName: userName,
-      ownerPhone: ownerPhone, // Added this so the call button works
+      ownerPhone: ownerPhone,
       symptoms: petSymptoms,
       location: sanitizedLocation, 
       severity: severity, 
@@ -117,6 +123,110 @@ export const acceptSOS = async (alertId, volunteerId, volunteerName, volunteerTi
   }
 };
 
+// UPDATED: ESCALATE AND HAND OFF (Student rewards and exits)
+export const escalateAndHandOff = async (alertId, studentId, symptoms, severity) => {
+  try {
+    const alertRef = doc(db, 'alerts', alertId);
+    
+    // Triage points for student
+    let triagePoints = 15; 
+    if (severity === 'mid') triagePoints = 25;
+
+    // Update Alert: Clear assignedVetId so it appears in Senior "Escalated" Tab
+    await updateDoc(alertRef, {
+      status: 'escalated',
+      isEscalated: true,
+      prevAssignedId: studentId, 
+      assignedVetId: null, 
+      lastUpdated: serverTimestamp()
+    });
+
+    // Reward the student
+    const userRef = doc(db, 'users', studentId);
+    await updateDoc(userRef, {
+      points: increment(triagePoints),
+      resolvedCount: increment(1) 
+    });
+
+    // Notify Seniors
+    await notifySeniorVolunteers(alertId, symptoms);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Handoff Error:", error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+export const notifySeniorVolunteers = async (caseId, symptoms) => {
+  try {
+    const q = query(
+      collection(db, "users"), 
+      where("role", "==", "volunteer"),
+      where("tierId", "in", ["graduate", "qualified"])
+    );
+    
+    const snapshot = await getDocs(q);
+    const tokens = [];
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.pushToken) tokens.push(data.pushToken);
+    });
+
+    if (tokens.length === 0) return { success: true, info: "No senior volunteers to notify" };
+
+    const message = {
+      to: tokens,
+      sound: 'default',
+      title: '⚠️ URGENT: Case Escalation',
+      body: `A Student requires assistance. Symptoms: ${(symptoms || '').substring(0, 40)}...`,
+      data: { type: 'ESCALATION_ALERT', caseId: caseId },
+      android: {
+        channelId: 'emergency',
+        priority: 'high',
+      },
+    };
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Escalation Notification Error:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// UPDATED: TAKE OVER (Seniors claim the escalated case)
+export const takeOverCase = async (alertId, seniorId, seniorName, seniorTier) => {
+  try {
+    const alertRef = doc(db, 'alerts', alertId);
+    
+    await updateDoc(alertRef, {
+      assignedVetId: seniorId,
+      assignedVetName: seniorName,
+      assignedVetTier: seniorTier,
+      status: 'accepted', // Moves it back to 'accepted' so it disappears from 'escalated' list
+      isEscalated: false, 
+      helpType: 'In-Person Assistance',
+      lastUpdated: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Takeover Error:", error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 // 4. UPDATE CLIPBOARD
 export const updateClipboard = async (alertId, status, advice) => {
   try {
@@ -132,17 +242,19 @@ export const updateClipboard = async (alertId, status, advice) => {
   }
 };
 
-// 5. UPDATE LIVE LOCATION & DISTANCE
+// 5. UPDATE LIVE LOCATION
 export const updateLiveLocation = async (alertId, volunteerLat, volunteerLng, ownerLat, ownerLng) => {
   try {
     if (!ownerLat || !ownerLng) return { success: false, error: "Owner location missing" };
 
-    const R = 6371; 
+    const R = 6371; // Earth's radius in km
     const dLat = (ownerLat - volunteerLat) * Math.PI / 180;
     const dLon = (ownerLng - volunteerLng) * Math.PI / 180;
+    
     const a = 
       Math.sin(dLat/2) * Math.sin(dLat/2) +
       Math.cos(volunteerLat * Math.PI / 180) * Math.cos(ownerLat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distance = R * c; 
 
@@ -159,7 +271,7 @@ export const updateLiveLocation = async (alertId, volunteerLat, volunteerLng, ow
   }
 };
 
-// 6. RESOLVE CASE - FIXING HANGING SPINNER
+// 6. RESOLVE CASE - ADDED resolvedCount INCREMENT
 export const resolveCase = async (alertId, volunteerId) => {
   try {
     if (!alertId || !volunteerId) {
@@ -172,15 +284,12 @@ export const resolveCase = async (alertId, volunteerId) => {
     if (!alertSnap.exists()) throw new Error("Alert not found");
     const alertData = alertSnap.data();
 
-    // If already resolved, just return success
     if (alertData.status === 'resolved') return { success: true };
 
-    // Point Calculation
     let pointsToAward = 10; 
     if (alertData.severity === 'mid') pointsToAward = 25;
     if (alertData.severity === 'high') pointsToAward = 50;
 
-    // Execute updates
     await updateDoc(alertRef, { 
       status: 'resolved',
       resolvedAt: serverTimestamp(),
@@ -189,7 +298,8 @@ export const resolveCase = async (alertId, volunteerId) => {
 
     const userRef = doc(db, 'users', volunteerId);
     await updateDoc(userRef, {
-      points: increment(pointsToAward) 
+      points: increment(pointsToAward),
+      resolvedCount: increment(1) 
     });
 
     return { success: true, pointsEarned: pointsToAward };
@@ -233,7 +343,7 @@ export const registerForPushNotifications = async (uid) => {
   }
 };
 
-// BROADCAST TO VOLUNTEERS
+// BROADCAST TO ALL VOLUNTEERS
 export const sendPushNotification = async (title, body) => {
   try {
     const q = query(collection(db, "users"), where("role", "==", "volunteer"));
