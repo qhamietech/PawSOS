@@ -16,9 +16,7 @@ Styling: Custom Design System (Theme-based CSS-in-JS)
 Calculations: Haversine Formula for real-time distance tracking
 
 <p align="center">
-  <video src="https://github.com/qhamietech/PawSOS/blob/main/PawSOS-Demo.mp4?raw=true" width="400" autoplay loop muted playsinline></video>
-  <br>
-  <strong>Real-time SOS Orchestration: Pet Owner (Left) vs. Volunteer Responder (Right)</strong>
+https://github.com/user-attachments/assets/e52aac87-f1d0-410b-a6e0-26555d1b73f6
 </p>
 
 ✨ Core Features
