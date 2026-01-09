@@ -1,4 +1,11 @@
 🐾 PawSOS: Emergency Veterinary Response System
+<p align="center">
+  <video src="https://github.com/qhamietech/PawSOS/blob/main/pawsos-demo.mp4?raw=true" width="400" autoplay loop muted playsinline></video>
+  <br>
+  <strong>Real-time SOS Orchestration: Pet Owner (Left) vs. Volunteer Responder (Right)</strong>
+</p>
+
+---
 PawSOS is a mission-critical mobile application designed to bridge the gap between pet owners in crisis and a tiered network of veterinary volunteers. Built with React Native and Firebase, it provides a real-time "War Room" for animal emergencies.
 
 🛠 Technologies
