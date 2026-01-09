@@ -16,7 +16,10 @@ Styling: Custom Design System (Theme-based CSS-in-JS)
 Calculations: Haversine Formula for real-time distance tracking
 
 <p align="center">
-https://github.com/user-attachments/assets/e52aac87-f1d0-410b-a6e0-26555d1b73f6
+  <video src="https://github.com/user-attachments/assets/e52aac87-f1d0-410b-a6e0-26555d1b73f6" width="600" autoplay loop muted playsinline>
+  </video>
+  <br>
+  <em><b>Real-time SOS Orchestration:</b> Petitioner (Left) vs. Responder (Right)</em>
 </p>
 
 ✨ Core Features
