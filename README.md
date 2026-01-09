@@ -1,6 +1,6 @@
 🐾 PawSOS: Emergency Veterinary Response System
 <p align="center">
-  <video src="https://github.com/qhamietech/PawSOS/blob/main/pawsos-demo.mp4?raw=true" width="400" autoplay loop muted playsinline></video>
+  <video src="https://github.com/qhamietech/PawSOS/blob/main/PawSOS-Demo.mp4?raw=true" width="400" autoplay loop muted playsinline></video>
   <br>
   <strong>Real-time SOS Orchestration: Pet Owner (Left) vs. Volunteer Responder (Right)</strong>
 </p>
