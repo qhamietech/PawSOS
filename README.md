@@ -16,11 +16,19 @@ Styling: Custom Design System (Theme-based CSS-in-JS)
 Calculations: Haversine Formula for real-time distance tracking
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/e52aac87-f1d0-410b-a6e0-26555d1b73f6" width="600" autoplay="true" loop="true" muted="true" playsinline="true">
-  </video>
+  <img src="https://github.com/user-attachments/assets/32396196-1e36-4848-a848-4ceae744f0e1" width="700" />
   <br>
-  <em><b>Real-time SOS Orchestration:</b> High-speed synchronization between Petitioner and Responder.</em>
+  <em><strong>Real-time SOS Orchestration:</strong> Sub-second state synchronization between Petitioner (Left) and Responder (Right).</em>
 </p>
+
+### ⚡ Technical Execution: Real-Time Sync
+This demo showcases the core architecture of **PawSOS**:
+* **Sub-second Latency:** Utilizing **Firebase Firestore Real-time Listeners**, the application synchronizes state across different user roles without manual refreshes.
+* **Dual-Role Logic:** The Responder's dashboard reacts instantly to the Petitioner's request, demonstrating robust **Role-Based Access Control (RBAC)**.
+* **Live Geospatial Tracking:** The system calculates and displays the distance between users in real-time, providing critical data during emergency scenarios.
+
+---
+
 
 ✨ Core Features
 Tiered Volunteer Verification: A custom RBAC (Role-Based Access Control) system categorizing rescuers into Student, Graduate, and Expert tiers.
