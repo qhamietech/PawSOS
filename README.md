@@ -3,6 +3,7 @@
 PawSOS is a mission-critical mobile application designed to bridge the gap between pet owners in crisis and a tiered network of veterinary volunteers. Built with React Native and Firebase, it provides a real-time "War Room" for animal emergencies.
 
 🛠 Technologies
+
 Frontend: React Native (Expo SDK)
 
 State Management: React Hooks & Navigation Params
