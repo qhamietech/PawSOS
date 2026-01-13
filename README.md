@@ -90,7 +90,7 @@ In-App Video Calls: Integration with Twilio or Daily.co for live video triage.
 
 Pharmacy Integration: Using Map APIs to show the nearest 24/7 open veterinary pharmacies.
 
-🏃‍♂️ How to Run the Project
+🏃‍♂️ How to Run this Project
 Clone the Repo:
 
 Bash
